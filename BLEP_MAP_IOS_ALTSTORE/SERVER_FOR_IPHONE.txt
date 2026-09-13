@@ -1,0 +1,7 @@
+﻿На Windows:
+1) Запусти BLEP MAP 3.0 сервер.
+2) Разреши Node.js в Windows Firewall для Private networks.
+3) iPhone и ПК подключи к одной Wi-Fi сети.
+4) В BLEP_MAP_ADDRESS.txt используй LAN-адрес, НЕ 127.0.0.1.
+5) Проверь этот адрес сначала в Safari на iPhone.
+6) Потом введи тот же адрес в BLEP MAP iOS.
