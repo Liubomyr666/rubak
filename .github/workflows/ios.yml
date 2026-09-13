@@ -11,29 +11,55 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Build BLEP MAP
+      - name: Show repository
         run: |
+          pwd
+          find . -maxdepth 4 -type d -name "*.xcodeproj" -print
+
+      - name: Find and build BLEP MAP
+        run: |
+          set -e
+
+          PROJECT="$(find . -type d -name 'BLEPMap.xcodeproj' | head -n 1)"
+
+          if [ -z "$PROJECT" ]; then
+            echo "ERROR: BLEPMap.xcodeproj not found."
+            echo "Repository contents:"
+            find . -maxdepth 3 -print
+            exit 1
+          fi
+
+          echo "Found project: $PROJECT"
+
+          PROJECT_DIR="$(dirname "$PROJECT")"
+
           rm -rf build Payload BLEP_MAP_ALTSTORE.ipa
 
           xcodebuild \
-            -project BLEPMap.xcodeproj \
+            -project "$PROJECT" \
             -scheme BLEPMap \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build \
+            -derivedDataPath "$PWD/build" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             build
 
+          APP_PATH="$PWD/build/Build/Products/Release-iphoneos/BLEPMap.app"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: BLEPMap.app was not created."
+            find "$PWD/build" -maxdepth 6 -name "*.app" -print
+            exit 1
+          fi
+
           mkdir Payload
-          cp -R build/Build/Products/Release-iphoneos/BLEPMap.app Payload/BLEPMap.app
+          cp -R "$APP_PATH" Payload/BLEPMap.app
 
           zip -qry BLEP_MAP_ALTSTORE.ipa Payload
 
+          echo "IPA READY:"
           ls -lh BLEP_MAP_ALTSTORE.ipa
 
       - name: Upload IPA
