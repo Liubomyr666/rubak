@@ -1,15 +1,20 @@
-name: Build BLEP MAP IPA
+name: Build BLEP MAP IPA - AltStore Compatible
 
 on:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-14
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Use Xcode 15.4
+        run: |
+          sudo xcode-select -s /Applications/Xcode_15.4.app
+          xcodebuild -version
 
       - name: Find and build BLEP MAP
         run: |
@@ -18,13 +23,13 @@ jobs:
           PROJECT="$(find . -type d -name 'BLEPMap.xcodeproj' | head -n 1)"
 
           if [ -z "$PROJECT" ]; then
-            echo "BLEPMap.xcodeproj not found"
+            echo "ERROR: BLEPMap.xcodeproj not found"
             exit 1
           fi
 
-          echo "Found project: $PROJECT"
+          echo "Project: $PROJECT"
 
-          rm -rf build Payload BLEP_MAP_ALTSTORE_FIXED.ipa
+          rm -rf build Payload BLEP_MAP_ALTSTORE_COMPAT.ipa
 
           xcodebuild \
             -project "$PROJECT" \
@@ -35,51 +40,36 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            OTHER_LDFLAGS="-Wl,-ld_classic" \
             build
 
           APP="$PWD/build/Build/Products/Release-iphoneos/BLEPMap.app"
 
           if [ ! -d "$APP" ]; then
-            echo "BLEPMap.app was not created"
+            echo "ERROR: BLEPMap.app not found"
             exit 1
           fi
 
-          echo "Removing old signatures..."
-          find "$APP" -type d -name "_CodeSignature" -prune -exec rm -rf {} + || true
+          echo "=== APP INFO ==="
+          /usr/bin/plutil -p "$APP/Info.plist"
 
-          echo "Ad-hoc signing embedded frameworks..."
-          if [ -d "$APP/Frameworks" ]; then
-            find "$APP/Frameworks" -type d -name "*.framework" -print0 | while IFS= read -r -d '' FW; do
-              codesign --force --sign - "$FW"
-            done
+          echo "=== EXECUTABLE ==="
+          file "$APP/BLEPMap"
 
-            find "$APP/Frameworks" -type f -name "*.dylib" -print0 | while IFS= read -r -d '' DYLIB; do
-              codesign --force --sign - "$DYLIB"
-            done
-          fi
-
-          echo "Ad-hoc signing app..."
-          codesign \
-            --force \
-            --deep \
-            --sign - \
-            --timestamp=none \
-            "$APP"
-
-          echo "Checking signature..."
-          codesign -dv --verbose=4 "$APP" 2>&1
+          rm -rf "$APP/_CodeSignature"
+          rm -f "$APP/embedded.mobileprovision"
 
           mkdir Payload
           cp -R "$APP" Payload/BLEPMap.app
 
-          /usr/bin/zip -qry BLEP_MAP_ALTSTORE_FIXED.ipa Payload
+          /usr/bin/zip -qry BLEP_MAP_ALTSTORE_COMPAT.ipa Payload
 
           echo "IPA READY:"
-          ls -lh BLEP_MAP_ALTSTORE_FIXED.ipa
+          ls -lh BLEP_MAP_ALTSTORE_COMPAT.ipa
 
-      - name: Upload fixed IPA
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: BLEP_MAP_ALTSTORE_FIXED
-          path: BLEP_MAP_ALTSTORE_FIXED.ipa
+          name: BLEP_MAP_ALTSTORE_COMPAT
+          path: BLEP_MAP_ALTSTORE_COMPAT.ipa
           if-no-files-found: error
